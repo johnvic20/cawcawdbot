@@ -194,14 +194,15 @@ class NFTMonitor {
         return embed;
     }
 
-    // Get current NFT rates
+    // Get current NFT rates (fixed rates)
     async getNFTRates() {
         try {
-            const rates = {};
-            for (const collection of NFT_CONFIG.supportedCollections) {
-                const rate = await this.marketplaceContract.nftRates(collection.address);
-                rates[collection.symbol] = ethers.formatUnits(rate, 18);
-            }
+            const rates = {
+                'CRO Crow': '400',
+                'Mad Crow': '400', 
+                'CRO Crow Nest': '1700',
+                '3D Crow': '130'
+            };
             return rates;
         } catch (error) {
             console.error('Error getting NFT rates:', error);
