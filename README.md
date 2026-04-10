@@ -4,6 +4,7 @@ A Discord bot that tracks and displays token information from DexScreener when p
 
 ## Features
 
+### Token Tracking
 - Responds to messages containing "cawcaw" (case insensitive)
 - Fetches real-time token data from DexScreener API
 - Displays comprehensive token information including:
@@ -15,6 +16,17 @@ A Discord bot that tracks and displays token information from DexScreener when p
   - DEX and chain information
 - Beautiful embed formatting
 - Error handling and user-friendly messages
+
+### NFT Marketplace Monitoring
+- Real-time monitoring of CAWCAW marketplace contract
+- Tracks NFT listings and sales for 4 supported collections:
+  - CRO Crow (0xE4ab77ED89528d90E6bcf0E1Ac99C58Da24e79d5)
+  - Mad Crow (0x65AB0251d29c9C473c8d01BFfa2966F891fB1181)
+  - CRO Crow Nest (0x937879726455531dB135F9b8D88F38dF5D4Eb13b)
+  - 3D Crow (0x3d7777ff1908B54b57038A2556d6904f71468e2D)
+- Discord alerts for NFT marketplace activity
+- NFT exchange rate tracking
+- Event-based monitoring for buy/sell transactions
 
 ## Setup
 
@@ -72,7 +84,20 @@ npm start
 
 ## Usage
 
-Simply type "cawcaw" in any channel where the bot is present, and it will respond with the current token information.
+### Token Commands
+- **"cawcaw"** - Displays current CAWCAW token information including price, volume, liquidity, and market cap
+
+### NFT Commands
+- **"nft rates"** or **"nft price"** - Shows current NFT to CAWCAW exchange rates for all supported collections
+- **"nft status"** or **"nft monitor"** - Shows NFT monitoring status and configuration
+
+### NFT Alerts
+The bot automatically monitors the CAWCAW marketplace and sends alerts to the configured channel when:
+- NFTs are listed for sale
+- NFTs are sold/purchased
+- Marketplace activity occurs
+
+Simply type any of the above commands in any channel where the bot is present to get the corresponding information.
 
 ## Token Configuration
 
@@ -80,6 +105,7 @@ The bot is configured to track the CAWCAW token at address `0x777cccA4e5dCCA8c85
 
 - `TOKEN_ADDRESS`: The contract address of the token to track
 - `TOKEN_NAME`: A friendly name for the token (used in embed titles)
+- `NFT_ALERT_CHANNEL_ID`: Discord channel ID where NFT alerts should be sent (optional)
 
 ## API Rate Limits
 
