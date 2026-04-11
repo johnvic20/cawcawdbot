@@ -21,15 +21,6 @@ A Discord bot that displays token information and responds to commands with fun 
   - Triggered by "destruction", "d", "D", or "destroy"
   - Displays animated GIF directly in Discord embed
 
-### Contract Event Monitoring
-- Real-time monitoring of CAWCAW token contract events
-- Tracks Transfer events on the CAWCAW token contract
-- Detects significant transactions (value > 0)
-- Discord alerts for contract interactions including:
-  - Token transfers between addresses
-  - Contract interactions and approvals
-  - Transaction details (hash, addresses, amounts, gas usage)
-- Event-based monitoring for instant notifications
 
 ## Setup
 
@@ -91,11 +82,6 @@ npm start
 - **"cawcaw"** - Displays current CAWCAW token information including price, volume, liquidity, and market cap
 - **"destruction"**, **"d"**, **"D"**, or **"destroy"** - Shows a balcony destruction GIF from Bleach
 
-### Contract Alerts
-The bot automatically monitors the CAWCAW token contract and sends alerts to the configured channel when:
-- Token transfers occur between addresses
-- Contract interactions are detected
-- Significant transactions (value > 0) are executed
 
 Simply type any of the above commands in any channel where the bot is present to get the corresponding information or GIF.
 
@@ -105,7 +91,6 @@ The bot is configured to track CAWCAW token at address `0x777cccA4e5dCCA8c85978a
 
 - `TOKEN_ADDRESS`: The contract address of token to track
 - `TOKEN_NAME`: A friendly name for the token (used in embed titles)
-- `CONTRACT_ALERT_CHANNEL_ID`: Discord channel ID where contract alerts should be sent (optional)
 
 ## API Rate Limits
 

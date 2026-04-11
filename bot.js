@@ -1,6 +1,5 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
-const ContractMonitor = require('./contract-monitor-simplified');
 require('dotenv').config();
 
 const client = new Client({
@@ -14,9 +13,6 @@ const client = new Client({
 const TOKEN_ADDRESS = process.env.TOKEN_ADDRESS || '0x777cccA4e5dCCA8c85978a94bD65aA83ccBE8395';
 const TOKEN_NAME = process.env.TOKEN_NAME || 'CAWCAW';
 const CONTRACT_ALERT_CHANNEL_ID = process.env.CONTRACT_ALERT_CHANNEL_ID || null;
-
-// Initialize Contract Monitor
-const contractMonitor = new ContractMonitor();
 
 // Fetch token data from DexScreener API for three specific pairs
 async function fetchTokenData() {
@@ -144,17 +140,6 @@ function createTokenEmbed(tokenData) {
 // Bot ready event
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`);
-    
-    // Initialize Contract Monitor if alert channel is configured
-    if (CONTRACT_ALERT_CHANNEL_ID) {
-        const initialized = await contractMonitor.initialize(client, CONTRACT_ALERT_CHANNEL_ID);
-        if (initialized) {
-            contractMonitor.startMonitoring();
-            console.log('Contract monitoring started');
-        }
-    } else {
-        console.log('Contract monitoring disabled (no alert channel configured)');
-    }
 });
 
 // Message event handler
