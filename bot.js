@@ -94,14 +94,14 @@ function createTokenEmbed(tokenData) {
     // Add average price
     if (tokenData.averagePrice) {
         embed.addFields(
-            { name: 'Average Price (USD)', value: `$${tokenData.averagePrice.toFixed(8)}`, inline: true }
+            { name: '💰 Current Price', value: `$${tokenData.averagePrice.toFixed(8)}`, inline: true }
         );
     }
 
     // Add total 24h volume
     if (tokenData.totalVolume) {
         embed.addFields(
-            { name: 'Total 24h Volume', value: `$${tokenData.totalVolume.toLocaleString()}`, inline: true }
+            { name: '📊 24h Volume', value: `$${tokenData.totalVolume.toLocaleString()}`, inline: true }
         );
     }
 
@@ -109,24 +109,25 @@ function createTokenEmbed(tokenData) {
     let liquidityText = '';
     for (const pair of tokenData.pairs) {
         const quoteToken = pair.name.split('/')[1];
-        liquidityText += `**${quoteToken}**: $${pair.liquidity.toLocaleString()} (${pair.dex})\n`;
+        let dexName = pair.dex === 'EBISUS-BAY' ? 'EBISUSBAY' : pair.dex === 'VVSFINANCE' ? 'VVS' : pair.dex;
+        liquidityText += `**${quoteToken}**: $${pair.liquidity.toLocaleString()} (${dexName})\n`;
     }
     
     embed.addFields(
-        { name: 'Individual Liquidity', value: liquidityText, inline: false }
+        { name: '💧 Liquidity', value: liquidityText, inline: false }
     );
 
     // Add total liquidity
     if (tokenData.totalLiquidity) {
         embed.addFields(
-            { name: 'Total Liquidity', value: `$${tokenData.totalLiquidity.toLocaleString()}`, inline: true }
+            { name: '💧 Total Liquidity', value: `$${tokenData.totalLiquidity.toLocaleString()}`, inline: true }
         );
     }
 
     // Add market cap from API
     if (tokenData.marketCap) {
         embed.addFields(
-            { name: 'Market Cap', value: `$${tokenData.marketCap.toLocaleString()}`, inline: true }
+            { name: '🏛️ Market Cap', value: `$${tokenData.marketCap.toLocaleString()}`, inline: true }
         );
     }
 
