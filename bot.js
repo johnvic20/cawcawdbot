@@ -174,6 +174,12 @@ client.on('messageCreate', async (message) => {
         return;
     }
 
+    // Check for destruction command
+    if (messageContent.includes('destruction') || messageContent === 'd' || messageContent === 'd ' || messageContent === 'D' || messageContent === 'D ' || messageContent.includes('destroy')) {
+        await handleDestructionCommand(message);
+        return;
+    }
+
     // Check if message contains "cawcaw" (case insensitive)
     if (messageContent.includes('cawcaw')) {
         try {
@@ -272,6 +278,32 @@ async function handleNFTStatusCommand(message) {
         const errorEmbed = new EmbedBuilder()
             .setTitle('Error')
             .setDescription('Failed to get NFT monitor status.')
+            .setColor(0xFF0000)
+            .setTimestamp();
+        
+        await message.reply({ embeds: [errorEmbed] });
+    }
+}
+
+// Handle destruction command
+async function handleDestructionCommand(message) {
+    try {
+        await message.channel.sendTyping();
+        
+        const embed = new EmbedBuilder()
+            .setTitle('Destruction')
+            .setColor(0xFF0000)
+            //.setDescription('The balcony destruction scene from Bleach - a moment of pure destruction!')
+            .setImage('https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExcWJ6ZmpnanFiaGo4aHZidWV0cmZpYmh1bnQzM2t0b2JnY2M5NDlldSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/chiOoeDwYDl9S/giphy.gif')
+            //.setTimestamp()
+            //.setFooter({ text: 'CAWCAW Bot' });
+        
+        await message.reply({ embeds: [embed] });
+    } catch (error) {
+        console.error('Error handling destruction command:', error);
+        const errorEmbed = new EmbedBuilder()
+            .setTitle('Error')
+            .setDescription('Failed to load destruction GIF.')
             .setColor(0xFF0000)
             .setTimestamp();
         
