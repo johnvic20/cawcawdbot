@@ -58,35 +58,89 @@ class ContractMonitor {
         console.log('Contract monitoring stopped');
     }
 
-    // Monitor contract events
+    // Monitor contract events using polling
     async monitorContractEvents() {
         if (!this.isMonitoring) return;
 
         try {
-            // Listen for Transfer events on the token contract
-            this.tokenContract.on('Transfer', async (from, to, value, event) => {
-                await this.handleTransferEvent(from, to, value, event);
-            });
-
-            console.log('Contract event monitoring started');
+            console.log('Contract polling monitoring started');
+            this.pollContractEvents();
         } catch (error) {
             console.error('Error setting up contract monitoring:', error);
         }
     }
 
-    // Handle Transfer events
-    async handleTransferEvent(from, to, value, event) {
+    // Poll for contract events
+    async pollContractEvents() {
+        if (!this.isMonitoring) return;
+
         try {
-            // Check if this is a significant transaction (value > 0)
-            if (value > 0n) {
-                const transactionDetails = await this.getTransactionDetails(event.transactionHash);
-                await this.sendContractAlert(transactionDetails);
+            console.log('Polling contract events...');
+            
+            // Get current block number
+            const currentBlock = await this.provider.getBlockNumber();
+            
+            // Check for new blocks since last processed
+            if (currentBlock > this.lastProcessedBlock) {
+                const fromBlock = this.lastProcessedBlock + 1;
+                const toBlock = currentBlock;
+                
+                // Get Transfer events from new blocks
+                try {
+                    const filter = {
+                        address: CONTRACT_CONFIG.token.address,
+                        topics: [
+                            '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef' // Transfer event signature
+                        ],
+                        fromBlock,
+                        toBlock
+                    };
+                    
+                    const logs = await this.provider.getLogs(filter);
+                    
+                    // Process each log
+                    for (const log of logs) {
+                        await this.processLog(log);
+                    }
+                    
+                    this.lastProcessedBlock = currentBlock;
+                } catch (logError) {
+                    console.log('Failed to get logs, will retry next poll:', logError.message);
+                }
+            }
+            
+        } catch (error) {
+            console.error('Error polling contract events:', error);
+        }
+
+        // Continue polling every 15 seconds
+        setTimeout(() => this.pollContractEvents(), 15000);
+    }
+
+    // Process a single log entry
+    async processLog(log) {
+        try {
+            // Decode the log to get Transfer event data
+            const iface = new ethers.Interface([
+                'event Transfer(address indexed from, address indexed to, uint256 value)'
+            ]);
+            
+            const parsedLog = iface.parseLog(log);
+            if (parsedLog && parsedLog.args) {
+                const { from, to, value } = parsedLog.args;
+                
+                // Check if this is a significant transaction (value > 0)
+                if (value > 0n) {
+                    const transactionDetails = await this.getTransactionDetails(log.transactionHash);
+                    await this.sendContractAlert(transactionDetails);
+                }
             }
         } catch (error) {
-            console.error('Error handling transfer event:', error);
+            console.error('Error processing log:', error);
         }
     }
 
+    
     // Get transaction details
     async getTransactionDetails(txHash) {
         try {
