@@ -1,32 +1,25 @@
 # Discord CAWCAW Token Bot
 
-A Discord bot that tracks and displays token information from DexScreener when people say "cawcaw" in chat.
+A Discord bot that displays token information and responds to commands with fun GIFs.
 
 ## Features
 
-### Token Tracking
+### Token Information
 - Responds to messages containing "cawcaw" (case insensitive)
 - Fetches real-time token data from DexScreener API
 - Displays comprehensive token information including:
-  - Current price (USD and native)
+  - Current price (USD)
   - 24h trading volume
-  - Liquidity
-  - 24h price change
+  - Liquidity by DEX pair
   - Market cap and FDV
-  - DEX and chain information
-- Beautiful embed formatting
+  - Direct links to DexScreener
+- Beautiful embed formatting with emojis
 - Error handling and user-friendly messages
 
-### NFT Marketplace Monitoring
-- Real-time monitoring of CAWCAW marketplace contract
-- Tracks NFT listings and sales for 4 supported collections:
-  - CRO Crow (0xE4ab77ED89528d90E6bcf0E1Ac99C58Da24e79d5)
-  - Mad Crow (0x65AB0251d29c9C473c8d01BFfa2966F891fB1181)
-  - CRO Crow Nest (0x937879726455531dB135F9b8D88F38dF5D4Eb13b)
-  - 3D Crow (0x3d7777ff1908B54b57038A2556d6904f71468e2D)
-- Discord alerts for NFT marketplace activity
-- NFT exchange rate tracking
-- Event-based monitoring for buy/sell transactions
+### Fun Commands
+- **Destruction Command**: Shows a balcony destruction GIF from Bleach
+  - Triggered by "destruction", "d", "D", or "destroy"
+  - Displays animated GIF directly in Discord embed
 
 ## Setup
 
@@ -84,20 +77,11 @@ npm start
 
 ## Usage
 
-### Token Commands
+### Commands
 - **"cawcaw"** - Displays current CAWCAW token information including price, volume, liquidity, and market cap
+- **"destruction"**, **"d"**, **"D"**, or **"destroy"** - Shows a balcony destruction GIF from Bleach
 
-### NFT Commands
-- **"nft rates"** or **"nft price"** - Shows current NFT to CAWCAW exchange rates for all supported collections
-- **"nft status"** or **"nft monitor"** - Shows NFT monitoring status and configuration
-
-### NFT Alerts
-The bot automatically monitors the CAWCAW marketplace and sends alerts to the configured channel when:
-- NFTs are listed for sale
-- NFTs are sold/purchased
-- Marketplace activity occurs
-
-Simply type any of the above commands in any channel where the bot is present to get the corresponding information.
+Simply type any of the above commands in any channel where the bot is present to get the corresponding information or GIF.
 
 ## Token Configuration
 
@@ -105,7 +89,6 @@ The bot is configured to track the CAWCAW token at address `0x777cccA4e5dCCA8c85
 
 - `TOKEN_ADDRESS`: The contract address of the token to track
 - `TOKEN_NAME`: A friendly name for the token (used in embed titles)
-- `NFT_ALERT_CHANNEL_ID`: Discord channel ID where NFT alerts should be sent (optional)
 
 ## API Rate Limits
 

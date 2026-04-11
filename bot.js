@@ -1,6 +1,5 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
-const NFTMonitor = require('./nft-monitor');
 require('dotenv').config();
 
 const client = new Client({
@@ -13,10 +12,6 @@ const client = new Client({
 
 const TOKEN_ADDRESS = process.env.TOKEN_ADDRESS || '0x777cccA4e5dCCA8c85978a94bD65aA83ccBE8395';
 const TOKEN_NAME = process.env.TOKEN_NAME || 'CAWCAW';
-const NFT_ALERT_CHANNEL_ID = process.env.NFT_ALERT_CHANNEL_ID || null;
-
-// Initialize NFT Monitor
-const nftMonitor = new NFTMonitor();
 
 // Fetch token data from DexScreener API for three specific pairs
 async function fetchTokenData() {
@@ -144,17 +139,6 @@ function createTokenEmbed(tokenData) {
 // Bot ready event
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`);
-    
-    // Initialize NFT Monitor if alert channel is configured
-    if (NFT_ALERT_CHANNEL_ID) {
-        const initialized = await nftMonitor.initialize(client, NFT_ALERT_CHANNEL_ID);
-        if (initialized) {
-            nftMonitor.startMonitoring();
-            console.log('NFT monitoring started');
-        }
-    } else {
-        console.log('NFT monitoring disabled (no alert channel configured)');
-    }
 });
 
 // Message event handler
@@ -164,16 +148,6 @@ client.on('messageCreate', async (message) => {
 
     const messageContent = message.content.toLowerCase();
 
-    // Check for NFT commands
-    if (messageContent.includes('nft rates') || messageContent.includes('nft price')) {
-        await handleNFTRatesCommand(message);
-        return;
-    }
-
-    if (messageContent.includes('nft status') || messageContent.includes('nft monitor')) {
-        await handleNFTStatusCommand(message);
-        return;
-    }
 
     // Check for destruction command
     if (messageContent.includes('destruction') || messageContent === 'd' || messageContent === 'd ' || messageContent === 'D' || messageContent === 'D ' || messageContent.includes('destroy')) {
@@ -216,75 +190,6 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-// NFT command handlers
-async function handleNFTRatesCommand(message) {
-    try {
-        await message.channel.sendTyping();
-        
-        const rates = await nftMonitor.getNFTRates();
-        
-        if (Object.keys(rates).length > 0) {
-            const embed = new EmbedBuilder()
-                .setTitle('NFT Exchange Rates')
-                .setColor(0x00AE86)
-                .setDescription('Current NFT to CAWCAW exchange rates')
-                .setTimestamp();
-            
-            for (const [symbol, rate] of Object.entries(rates)) {
-                embed.addFields(
-                    { name: symbol, value: `${rate} CAWCAW`, inline: true }
-                );
-            }
-            
-            embed.setFooter({ text: 'CAWCAW Marketplace Rates' });
-            await message.reply({ embeds: [embed] });
-        } else {
-            const errorEmbed = new EmbedBuilder()
-                .setTitle('NFT Rates Unavailable')
-                .setDescription('Unable to fetch NFT rates at this time.')
-                .setColor(0xFF0000)
-                .setTimestamp();
-            
-            await message.reply({ embeds: [errorEmbed] });
-        }
-    } catch (error) {
-        console.error('Error handling NFT rates command:', error);
-        const errorEmbed = new EmbedBuilder()
-            .setTitle('Error')
-            .setDescription('Failed to fetch NFT rates.')
-            .setColor(0xFF0000)
-            .setTimestamp();
-        
-        await message.reply({ embeds: [errorEmbed] });
-    }
-}
-
-async function handleNFTStatusCommand(message) {
-    try {
-        const embed = new EmbedBuilder()
-            .setTitle('NFT Monitor Status')
-            .setColor(0x00AE86)
-            .addFields(
-                { name: 'Monitor Status', value: nftMonitor.isMonitoring ? 'Active' : 'Inactive', inline: true },
-                { name: 'Alert Channel', value: NFT_ALERT_CHANNEL_ID ? 'Configured' : 'Not Configured', inline: true },
-                { name: 'Supported Collections', value: '4 Collections', inline: true }
-            )
-            .setDescription('Monitoring CAWCAW Marketplace for NFT activity')
-            .setTimestamp()
-            .setFooter({ text: 'CAWCAW NFT Monitor' });
-        
-        await message.reply({ embeds: [embed] });
-    } catch (error) {
-        console.error('Error handling NFT status command:', error);
-        const errorEmbed = new EmbedBuilder()
-            .setTitle('Error')
-            .setDescription('Failed to get NFT monitor status.')
-            .setColor(0xFF0000)
-            .setTimestamp();
-        
-        await message.reply({ embeds: [errorEmbed] });
-    }
-}
 
 // Handle destruction command
 async function handleDestructionCommand(message) {
