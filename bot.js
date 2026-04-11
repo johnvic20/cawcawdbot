@@ -1,5 +1,6 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
+const { ethers } = require('ethers');
 require('dotenv').config();
 
 const client = new Client({
@@ -13,6 +14,166 @@ const client = new Client({
 const TOKEN_ADDRESS = process.env.TOKEN_ADDRESS || '0x777cccA4e5dCCA8c85978a94bD65aA83ccBE8395';
 const TOKEN_NAME = process.env.TOKEN_NAME || 'CAWCAW';
 const CONTRACT_ALERT_CHANNEL_ID = process.env.CONTRACT_ALERT_CHANNEL_ID || null;
+
+// Web3 setup for Cronos mainnet
+const CRONOS_RPC_URL = process.env.CRONOS_RPC_URL || 'https://cronos-evm.publicnode.com';
+const provider = new ethers.JsonRpcProvider(CRONOS_RPC_URL);
+
+// Contract ABI (minimal for events we need)
+const CONTRACT_ABI = [
+    "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)",
+    "function buyCAWCAW(address[] calldata collections, uint256[] calldata tokenIds) external",
+    "function sellCAWCAW(address[] calldata collections, uint256[] calldata tokenIds) external",
+    "function totalSupply() external view returns (uint256)",
+    "function balanceOf(address account) external view returns (uint256)",
+    "function decimals() external view returns (uint8)"
+];
+
+// NFT Collections to monitor
+const NFT_COLLECTIONS = {
+    'CRO CROW': '0xE4ab77ED89528d90E6bcf0E1Ac99C58Da24e79d5',
+    'CRO CROW NEST': '0x937879726455531dB135F9b8D88F38dF5D4Eb13b',
+    'MAD CROW': '0x65AB0251d29c9C473c8d01BFfa2966F891fB1181',
+    '3D CROW': '0x3d7777ff1908B54b57038A2556d6904f71468e2D',
+    'CROW PUNK': '0x0f1439A290E86a38157831Fe27a3dCD302904055'
+};
+
+// Contract instance
+const contract = new ethers.Contract(TOKEN_ADDRESS, CONTRACT_ABI, provider);
+
+// Store last processed block to avoid duplicate events
+let lastProcessedBlock = 0;
+
+// Get collection name from address
+function getCollectionName(address) {
+    for (const [name, addr] of Object.entries(NFT_COLLECTIONS)) {
+        if (addr.toLowerCase() === address.toLowerCase()) {
+            return name;
+        }
+    }
+    return 'Unknown Collection';
+}
+
+// Create NFT activity alert embed
+function createNFTAlertEmbed(type, collectionName, tokenId, from, to, txHash) {
+    const isDeposit = to.toLowerCase() === TOKEN_ADDRESS.toLowerCase();
+    const isWithdrawal = from.toLowerCase() === TOKEN_ADDRESS.toLowerCase();
+    
+    let title, color, description;
+    
+    if (isDeposit) {
+        title = '🏦 NFT Deposited to Contract';
+        color = 0x00FF00; // Green
+        description = `Someone deposited a **${collectionName}** NFT to the CAWCAW contract!`;
+    } else if (isWithdrawal) {
+        title = '💸 NFT Withdrawn from Contract';
+        color = 0xFF9900; // Orange
+        description = `Someone withdrew a **${collectionName}** NFT from the CAWCAW contract!`;
+    } else {
+        title = '🔄 NFT Transfer';
+        color = 0x0099FF; // Blue
+        description = `**${collectionName}** NFT transferred`;
+    }
+    
+    const embed = new EmbedBuilder()
+        .setTitle(title)
+        .setDescription(description)
+        .setColor(color)
+        .addFields(
+            { name: '🎨 Collection', value: collectionName, inline: true },
+            { name: '🆔 Token ID', value: `#${tokenId}`, inline: true },
+            { name: '📤 From', value: `\`${from.slice(0, 6)}...${from.slice(-4)}\``, inline: true },
+            { name: '📥 To', value: `\`${to.slice(0, 6)}...${to.slice(-4)}\``, inline: true }
+        )
+        .addFields(
+            { name: '🔗 Transaction', value: `[View on Explorer](https://cronoscan.com/tx/${txHash})`, inline: false }
+        )
+        .setTimestamp()
+        .setFooter({ text: 'CAWCAW Contract Monitor' });
+    
+    return embed;
+}
+
+// Monitor NFT transfers to/from contract
+async function monitorNFTTransfers() {
+    try {
+        const currentBlock = await provider.getBlockNumber();
+        
+        // Initialize on first run
+        if (lastProcessedBlock === 0) {
+            lastProcessedBlock = currentBlock;
+            console.log(`NFT Monitor: Starting from block ${currentBlock}`);
+            return;
+        }
+        
+        // Check recent blocks (scan last 5 blocks to catch any missed events)
+        const fromBlock = Math.max(0, lastProcessedBlock - 4);
+        const toBlock = currentBlock;
+        
+        console.log(`NFT Monitor: Scanning blocks ${fromBlock} to ${toBlock}`);
+        
+        // Monitor each collection
+        for (const [collectionName, collectionAddress] of Object.entries(NFT_COLLECTIONS)) {
+            try {
+                // Create NFT contract instance
+                const nftContract = new ethers.Contract(collectionAddress, [
+                    "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+                ], provider);
+                
+                // Get Transfer events
+                const filter = nftContract.filters.Transfer();
+                const events = await nftContract.queryFilter(filter, fromBlock, toBlock);
+                
+                for (const event of events) {
+                    const { from, to, tokenId } = event.args;
+                    const txHash = event.transactionHash;
+                    const blockNumber = event.blockNumber;
+                    
+                    // Only process new events
+                    if (blockNumber > lastProcessedBlock) {
+                        // Check if transfer involves our contract
+                        if (from.toLowerCase() === TOKEN_ADDRESS.toLowerCase() || 
+                            to.toLowerCase() === TOKEN_ADDRESS.toLowerCase()) {
+                            
+                            console.log(`NFT Activity: ${collectionName} #${tokenId} from ${from} to ${to}`);
+                            
+                            // Send alert to Discord channel
+                            await sendNFTAlert(collectionName, tokenId.toString(), from, to, txHash);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error(`Error monitoring ${collectionName}:`, error.message);
+            }
+        }
+        
+        lastProcessedBlock = currentBlock;
+    } catch (error) {
+        console.error('Error in NFT monitoring:', error);
+    }
+}
+
+// Send NFT alert to Discord
+async function sendNFTAlert(collectionName, tokenId, from, to, txHash) {
+    if (!CONTRACT_ALERT_CHANNEL_ID) {
+        console.log('No alert channel configured, skipping NFT alert');
+        return;
+    }
+    
+    try {
+        const channel = await client.channels.fetch(CONTRACT_ALERT_CHANNEL_ID);
+        if (!channel) {
+            console.log('Alert channel not found');
+            return;
+        }
+        
+        const embed = createNFTAlertEmbed('transfer', collectionName, tokenId, from, to, txHash);
+        await channel.send({ embeds: [embed] });
+        console.log(`NFT Alert sent: ${collectionName} #${tokenId}`);
+    } catch (error) {
+        console.error('Error sending NFT alert:', error);
+    }
+}
 
 // Fetch token data from DexScreener API for three specific pairs
 async function fetchTokenData() {
@@ -140,6 +301,19 @@ function createTokenEmbed(tokenData) {
 // Bot ready event
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`);
+    
+    // Start NFT monitoring
+    console.log('Starting NFT monitoring...');
+    
+    // Initial scan
+    await monitorNFTTransfers();
+    
+    // Set up interval for monitoring (every 15 seconds)
+    setInterval(async () => {
+        await monitorNFTTransfers();
+    }, 15000);
+    
+    console.log('NFT monitoring started - checking every 15 seconds');
 });
 
 // Message event handler
@@ -153,6 +327,12 @@ client.on('messageCreate', async (message) => {
     // Check for destruction command
     if (messageContent.includes('destruction') || messageContent === 'd' || messageContent === 'd ' || messageContent === 'D' || messageContent === 'D ' || messageContent.includes('destroy')) {
         await handleDestructionCommand(message);
+        return;
+    }
+
+    // Check for circulating supply command
+    if (messageContent.includes('circulating') || messageContent === 'c' || messageContent === 'c ' || messageContent === 'C' || messageContent === 'C ') {
+        await handleCirculatingCommand(message);
         return;
     }
 
@@ -211,6 +391,113 @@ async function handleDestructionCommand(message) {
         const errorEmbed = new EmbedBuilder()
             .setTitle('Error')
             .setDescription('Failed to load destruction GIF.')
+            .setColor(0xFF0000)
+            .setTimestamp();
+        
+        await message.reply({ embeds: [errorEmbed] });
+    }
+}
+
+// Handle circulating supply command
+async function handleCirculatingCommand(message) {
+    try {
+        await message.channel.sendTyping();
+        
+        // Get token decimals for proper formatting
+        const decimals = await contract.decimals();
+        
+        // Get total supply
+        const totalSupply = await contract.totalSupply();
+        
+        // Get contract balance (tokens held by the contract itself)
+        const contractBalance = await contract.balanceOf(TOKEN_ADDRESS);
+        
+        // Calculate circulating supply (total supply - contract balance)
+        const circulatingSupply = totalSupply - contractBalance;
+        
+        // Format numbers with proper decimals
+        const formatTokens = (amount) => {
+            // Convert BigInt to string immediately to avoid any BigInt operations
+            const amountStr = amount.toString();
+            const decimalsNum = Number(decimals);
+            
+            // Convert BigInt to string using ethers.formatUnits
+            const formattedStr = ethers.formatUnits(amountStr, decimalsNum).toString();
+            
+            // Manual formatting without number conversion
+            const parts = formattedStr.split('.');
+            let integerPart = parts[0];
+            let decimalPart = parts[1] || '';
+            
+            // Add commas to integer part
+            integerPart = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            
+            // Handle decimal places using string length comparison
+            const decimalsStr = decimalsNum.toString();
+            if (decimalPart.length > decimalsNum) {
+                decimalPart = decimalPart.substring(0, decimalsNum);
+            } else if (decimalPart.length < decimalsNum) {
+                // Manual padding instead of padEnd
+                while (decimalPart.length < decimalsNum) {
+                    decimalPart += '0';
+                }
+            }
+            
+            // Remove trailing zeros from decimal part if not needed
+            if (decimalPart === '0000000' || decimalPart === '') {
+                return integerPart;
+            } else {
+                // Remove trailing zeros but keep at least one decimal if needed
+                decimalPart = decimalPart.replace(/0+$/, '');
+                if (decimalPart) {
+                    return integerPart + '.' + decimalPart;
+                } else {
+                    return integerPart;
+                }
+            }
+        };
+        
+        const embed = new EmbedBuilder()
+            .setTitle(`${TOKEN_NAME} Token Supply Information`)
+            .setColor(0x00AE86)
+            .addFields(
+                { 
+                    name: 'Total Supply', 
+                    value: `${formatTokens(totalSupply)} ${TOKEN_NAME}`, 
+                    inline: false 
+                },
+                { 
+                    name: 'Contract Balance', 
+                    value: `${formatTokens(contractBalance)} ${TOKEN_NAME}`, 
+                    inline: false 
+                },
+                { 
+                    name: 'Circulating Supply', 
+                    value: `${formatTokens(circulatingSupply)} ${TOKEN_NAME}`, 
+                    inline: false 
+                }
+            )
+            .addFields(
+                { 
+                    name: 'Circulation Rate', 
+                    value: `${((Number(circulatingSupply) / Number(totalSupply)) * 100).toFixed(2)}%`, 
+                    inline: true 
+                },
+                { 
+                    name: 'Contract Hold Rate', 
+                    value: `${((Number(contractBalance) / Number(totalSupply)) * 100).toFixed(2)}%`, 
+                    inline: true 
+                }
+            )
+            .setTimestamp()
+            .setFooter({ text: 'CAWCAW Bot - Supply Information' });
+        
+        await message.reply({ embeds: [embed] });
+    } catch (error) {
+        console.error('Error handling circulating command:', error);
+        const errorEmbed = new EmbedBuilder()
+            .setTitle('Error Fetching Supply Data')
+            .setDescription('Unable to fetch token supply information. Please try again later.')
             .setColor(0xFF0000)
             .setTimestamp();
         
