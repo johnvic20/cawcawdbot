@@ -1,6 +1,6 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
-const ContractMonitor = require('./contract-monitor');
+const ContractMonitor = require('./contract-monitor-simplified');
 require('dotenv').config();
 
 const client = new Client({
