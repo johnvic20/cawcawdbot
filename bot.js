@@ -175,6 +175,31 @@ async function sendNFTAlert(collectionName, tokenId, from, to, txHash) {
     }
 }
 
+// Helper function for API calls with retry logic
+async function fetchWithRetry(url, maxRetries = 3, delay = 1000) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            const response = await axios.get(url, {
+                timeout: 10000, // 10 second timeout
+                headers: {
+                    'User-Agent': 'CAWCAW-Bot/1.0'
+                }
+            });
+            return response;
+        } catch (error) {
+            console.log(`Attempt ${attempt}/${maxRetries} failed for ${url}: ${error.message}`);
+            
+            if (attempt === maxRetries) {
+                throw error;
+            }
+            
+            // Exponential backoff
+            const backoffDelay = delay * Math.pow(2, attempt - 1);
+            await new Promise(resolve => setTimeout(resolve, backoffDelay));
+        }
+    }
+}
+
 // Fetch token data from DexScreener API for three specific pairs
 async function fetchTokenData() {
     const pairs = [
@@ -188,43 +213,68 @@ async function fetchTokenData() {
         let totalLiquidity = 0;
         let totalVolume = 0;
         let marketCap = 0;
+        let successfulPairs = 0;
         
-        for (const pair of pairs) {
+        // Fetch data for each pair with delay to avoid rate limits
+        for (let i = 0; i < pairs.length; i++) {
+            const pair = pairs[i];
+            
             try {
-                const response = await axios.get(`https://api.dexscreener.com/latest/dex/pairs/cronos/${pair.address}`);
+                console.log(`Fetching data for ${pair.name}...`);
+                const response = await fetchWithRetry(`https://api.dexscreener.com/latest/dex/pairs/cronos/${pair.address}`);
                 
-                if (response.data.pair) {
+                if (response.data && response.data.pair) {
                     const pairInfo = response.data.pair;
                     const liquidity = parseFloat(pairInfo.liquidity?.usd || 0);
                     const volume = parseFloat(pairInfo.volume?.h24 || 0);
+                    const price = parseFloat(pairInfo.priceUsd || 0);
                     
                     totalLiquidity += liquidity;
                     totalVolume += volume;
+                    successfulPairs++;
                     
                     pairData.push({
                         name: pair.name,
                         liquidity: liquidity,
                         volume: volume,
-                        price: parseFloat(pairInfo.priceUsd || 0),
+                        price: price,
                         dex: pairInfo.dexId?.toUpperCase() || 'Unknown'
                     });
+                    
+                    console.log(`✓ Successfully fetched ${pair.name}: $${price.toFixed(8)}`);
+                } else {
+                    console.log(`✗ No data available for ${pair.name}`);
                 }
             } catch (error) {
-                console.log(`Error fetching ${pair.name}:`, error.message);
+                console.log(`✗ Failed to fetch ${pair.name} after 3 attempts: ${error.message}`);
+                
+                // Check if it's a rate limit error
+                if (error.response?.status === 429) {
+                    console.log('Rate limit detected, waiting longer before next request...');
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                }
+            }
+            
+            // Add delay between requests to avoid rate limits
+            if (i < pairs.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
         }
         
         // Fetch market cap from specific URL
         try {
-            const marketCapResponse = await axios.get('https://api.dexscreener.com/latest/dex/pairs/cronos/0xb377df33f200b92a4deec6ee6b40ed0b4b4a7293');
-            if (marketCapResponse.data.pair) {
+            console.log('Fetching market cap data...');
+            const marketCapResponse = await fetchWithRetry('https://api.dexscreener.com/latest/dex/pairs/cronos/0xb377df33f200b92a4deec6ee6b40ed0b4b4a7293');
+            if (marketCapResponse.data && marketCapResponse.data.pair) {
                 marketCap = parseFloat(marketCapResponse.data.pair.marketCap || 0);
+                console.log(`✓ Market cap: $${marketCap.toLocaleString()}`);
             }
         } catch (error) {
-            console.log('Error fetching market cap:', error.message);
+            console.log(`✗ Failed to fetch market cap: ${error.message}`);
         }
         
-        if (pairData.length > 0) {
+        if (successfulPairs > 0) {
+            console.log(`✓ Successfully fetched data for ${successfulPairs}/${pairs.length} pairs`);
             return {
                 pairs: pairData,
                 totalLiquidity: totalLiquidity,
@@ -232,11 +282,12 @@ async function fetchTokenData() {
                 averagePrice: pairData.reduce((sum, p) => sum + p.price, 0) / pairData.length,
                 marketCap: marketCap
             };
+        } else {
+            console.log('✗ No pair data was successfully fetched');
+            return null;
         }
-        
-        return null;
     } catch (error) {
-        console.error('Error fetching token data:', error.message);
+        console.error('Critical error in fetchTokenData:', error.message);
         return null;
     }
 }
