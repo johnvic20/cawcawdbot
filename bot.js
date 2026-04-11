@@ -449,6 +449,19 @@ async function handleDestructionCommand(message) {
     }
 }
 
+
+// Helper function to create a visual supply distribution bar
+function createSupplyBar(circulationRate, contractHoldRate) {
+    const totalBars = 20;
+    const circulationBars = Math.round((circulationRate / 100) * totalBars);
+    const contractBars = totalBars - circulationBars;
+    
+    const circulationPart = '🟦'.repeat(circulationBars);
+    const contractPart = '🟥'.repeat(contractBars);
+    
+    return `${circulationPart}${contractPart}\n🟦 Circulating | 🟥 Contract`;
+}
+
 // Handle circulating supply command
 async function handleCirculatingCommand(message) {
     try {
@@ -508,36 +521,46 @@ async function handleCirculatingCommand(message) {
             }
         };
         
+        const circulationRate = (Number(circulatingSupply) / Number(totalSupply)) * 100;
+        const contractHoldRate = (Number(contractBalance) / Number(totalSupply)) * 100;
+        
         const embed = new EmbedBuilder()
-            .setTitle(`${TOKEN_NAME} Token Supply Information`)
+            .setTitle(`${TOKEN_NAME} Token Supply`)
             .setColor(0x00AE86)
             .addFields(
                 { 
-                    name: 'Total Supply', 
-                    value: `${formatTokens(totalSupply)} ${TOKEN_NAME}`, 
+                    name: '💰 **Total Supply**', 
+                    value: `**${formatTokens(totalSupply)}** ${TOKEN_NAME}`, 
                     inline: false 
                 },
                 { 
-                    name: 'Contract Balance', 
-                    value: `${formatTokens(contractBalance)} ${TOKEN_NAME}`, 
+                    name: '🏦 **Contract Holdings**', 
+                    value: `**${formatTokens(contractBalance)}** ${TOKEN_NAME}`, 
                     inline: false 
                 },
                 { 
-                    name: 'Circulating Supply', 
-                    value: `${formatTokens(circulatingSupply)} ${TOKEN_NAME}`, 
+                    name: '🌍 **Circulating Supply**', 
+                    value: `**${formatTokens(circulatingSupply)}** ${TOKEN_NAME}`, 
                     inline: false 
                 }
             )
             .addFields(
                 { 
-                    name: 'Circulation Rate', 
-                    value: `${((Number(circulatingSupply) / Number(totalSupply)) * 100).toFixed(2)}%`, 
+                    name: 'Circulation', 
+                    value: `${circulationRate.toFixed(2)}%`, 
                     inline: true 
                 },
                 { 
-                    name: 'Contract Hold Rate', 
-                    value: `${((Number(contractBalance) / Number(totalSupply)) * 100).toFixed(2)}%`, 
+                    name: 'Contract Hold', 
+                    value: `${contractHoldRate.toFixed(2)}%`, 
                     inline: true 
+                }
+            )
+            .addFields(
+                {
+                    name: '📊 **Supply Distribution**',
+                    value: createSupplyBar(circulationRate, contractHoldRate),
+                    inline: false
                 }
             )
             .setTimestamp()
