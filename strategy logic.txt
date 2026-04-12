@@ -1,0 +1,64 @@
+## Strategy Logic
+
+All profit figures are **estimates in USD** based on live prices (CAWCAW/USD from DexScreener, CRO/USD from DexScreener). No exchange fees are factored in.
+
+---
+
+### 🏦 Vault Pump
+**You own CRO. You want CAWCAW.**
+
+| | |
+|---|---|
+| **Step 1 – Cost** | Buy cheapest listed NFT on Ebisus Bay |
+| **Step 2 – Revenue** | Sell it to the CAWCAW vault → receive vault rate in CAWCAW |
+| **Profit** | `vault rate (USD) − Ebisus listing price (USD)` |
+
+The app picks the **cheapest listing** and, as a tie-breaker, the one with the **best rarity rank**.
+
+---
+
+### 🔄 Floor Flip
+**You own CAWCAW. You want CRO.**
+
+| | |
+|---|---|
+| **Step 1 – Cost** | Spend CAWCAW to redeem an NFT from the vault (vault rate) |
+| **Step 2 – Revenue** | List it on Ebisus at the current **floor price** |
+| **Profit** | `floor price (USD) − vault rate (USD)` |
+
+The app picks the **best-ranked NFT currently in the vault** to redeem. Marked unavailable if the vault is empty.
+
+---
+
+### 💰 Sell to Vault (wallet-vault)
+**You already own an NFT from a supported collection.**
+
+| | |
+|---|---|
+| **Step 1 – Revenue** | Sell your NFT to the CAWCAW vault → receive vault rate in CAWCAW |
+| **Cost** | 0 (you already own it) |
+| **Profit** | `vault rate (USD)` (the full CAWCAW you receive, valued in USD) |
+
+The app picks your **best-ranked NFT** in that collection. Shows count if you own multiples.
+
+---
+
+### 📋 List on Ebisus (wallet-list)
+**You already own an NFT from a supported collection.**
+
+| | |
+|---|---|
+| **Step 1 – Revenue** | List your NFT on Ebisus at the current **floor price** |
+| **Cost** | 0 (you already own it) |
+| **Profit** | `floor price (USD)` |
+
+Also picks your best-ranked NFT. Marked unavailable if there's no floor price (no active listings to benchmark against).
+---
+
+### Vault Rates (fixed by contract)
+| Collection | Rate |
+|---|---|
+| OG / MAD | 400 CAWCAW |
+| 3D CROW | 130 CAWCAW |
+| CROW PUNK | 288 CAWCAW |
+| CROW NEST | 1,700 CAWCAW |

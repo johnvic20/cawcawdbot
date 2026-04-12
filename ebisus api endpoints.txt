@@ -1,0 +1,61 @@
+📡 Ebisus Bay API Endpoints — CAWCAW Strategy Tab
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣  Active Listings (read)
+GET api.ebisusbay.com/listings
+  ?state=0&page={n}&pageSize=50
+  &sortBy=listingTime&direction=desc
+  &collection={address}
+
+Used for: finding the cheapest NFT to buy (Vault Pump cards)
+• Called once per collection (5 in parallel) on page load
+• Pages through up to 500 listings per collection
+• Drops: invalid, expired, and listings where seller = CAWCAW vault
+• Returns: listing ID, price (CRO), token ID, name, image, rarity rank
+• Auto-refreshes every 90 seconds
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2️⃣  Collection Floor Price (read)
+GET app.ebisusbay.com/api/collections?address={address}
+
+Used for: the "revenue" side of Floor Flip and List on Ebisus cards
+• 5 calls in parallel, one per collection
+• Returns: floorPrice (CRO) and active listing count
+• Floor price = expected sell price when listing an NFT
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3️⃣  Validator — pre-purchase server signature (read)
+GET cms.ebisusbay.com/api/gasless-listing/validator
+  ?address={buyer}&listingIds[]={id}
+
+Used for: Vault Pump — the step before buying on-chain
+• Ebisus's marketplace contract requires a server-issued signature
+  before any purchase can go through (anti-front-running + fee mechanism)
+• Returns: orderData, feeAmount (CRO wei), server sigs[]
+• These are passed directly into the on-chain fillOrders() call
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4️⃣  Create Gasless Listing (write)
+POST cms.ebisusbay.com/api/gasless-listing
+
+Used for: Floor Flip (step 2) and List on Ebisus
+• User signs an EIP-712 typed message in their wallet — no gas, no tx
+• The signature + order details are POSTed to Ebisus's server
+• Ebisus stores and serves it to buyers
+• The on-chain tx only happens when a buyer fills the order
+• Duration options: 1 day / 3 days / 1 week / 2 weeks / 30 days
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5️⃣  Cancel Gasless Listing (write)
+DELETE cms.ebisusbay.com/api/gasless-listing/express-cancel
+  ?listingIds[]={id}&express=true&address={addr}&signature={sig}
+
+Used for: cancelling a listing from the My NFTs page
+• No gas / no on-chain tx needed
+• User signs a plain-text sign-in message once per session
+• Signature is cached — no repeat wallet prompts for the same session
+• Ebisus marks the listing cancelled on their backend immediately
