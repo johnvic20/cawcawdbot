@@ -1,7 +1,8 @@
-const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const axios = require('axios');
 const { ethers } = require('ethers');
 require('dotenv').config();
+const { getStrategyData } = require('./strategyData');
 
 const client = new Client({
     intents: [
@@ -375,6 +376,12 @@ client.on('messageCreate', async (message) => {
     const messageContent = message.content.toLowerCase();
 
 
+    // Check for strategy command
+    if (messageContent === 'strategy' || messageContent === 's' || messageContent === 's ' || messageContent === 'S' || messageContent === 'S ' || messageContent.startsWith('strategy')) {
+        await handleStrategyCommand(message);
+        return;
+    }
+
     // Check for destruction command
     if (messageContent.includes('destruction') || messageContent === 'd' || messageContent === 'd ' || messageContent === 'D' || messageContent === 'D ' || messageContent.includes('destroy')) {
         await handleDestructionCommand(message);
@@ -576,6 +583,219 @@ async function handleCirculatingCommand(message) {
             .setTimestamp();
         
         await message.reply({ embeds: [errorEmbed] });
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// STRATEGY COMMAND — Live arbitrage opportunities
+// ─────────────────────────────────────────────────────────────────
+
+function fmtUsd(n)  { return `$${Math.abs(n).toFixed(2)}`; }
+function fmtCro(n)  { return `${n.toLocaleString('en-US', { maximumFractionDigits: 0 })} CRO`; }
+function fmtCaw(n)  { return `${n.toLocaleString('en-US', { maximumFractionDigits: 0 })} CAWCAW`; }
+
+/**
+ * Build a single Discord embed for one opportunity card,
+ * matching the layout of the strategy website.
+ *
+ * Site layout (both types):
+ *   Title: Collection name + type
+ *   profit line
+ *   Step 1: label → NFT name (if any) → rank (if any) → amount · $usd
+ *   Step 2: label → amount · $usd
+ *   Cost: $x  Revenue: $y
+ */
+function buildOpportunityEmbed(opp, prices, index, total) {
+    const profitable = opp.profitable;
+    const profitSign = profitable ? '+' : '-';
+    const color      = profitable ? 0x00c896 : 0xff6b6b;
+
+    const typeLabel = opp.type === 'floor_flip' ? '🔄 Floor Flip' : '🏦 Vault Pump';
+    const statusLine = profitable ? '💸 **Profitable**' : '📉 **Currently Unprofitable**';
+
+    const s1 = opp.step1;
+    const s2 = opp.step2;
+
+    const embed = new EmbedBuilder()
+        .setTitle(`${typeLabel} — ${opp.collection}`)
+        .setColor(color)
+        .setURL('https://crocrow.crowwithknife.com/?tab=strategy')
+        .setDescription(
+            `${statusLine}\n` +
+            `**${profitSign}${fmtUsd(opp.profitUsd)} est. profit**\n` +
+            `*Excludes gas, fees & slippage*`
+        );
+
+    // ── Step 1 ──
+    // Site shows:  label
+    //              NFT name (new line)   ← for vault pump AND floor flip
+    //              rank (inline prefix)  ← only when available
+    //              amount · $usd
+    let step1Val = `**${s1.label}**`;
+    if (s1.rank)    step1Val += `  ·  🏅 Rank #${s1.rank}`;
+    if (s1.nftName) step1Val += `\n${s1.nftName}`;
+    if (s1.cawcawAmount != null) step1Val += `\n${fmtCaw(s1.cawcawAmount)}  ·  ${fmtUsd(s1.costUsd)}`;
+    else if (s1.croAmount != null) step1Val += `\n${fmtCro(s1.croAmount)}  ·  ${fmtUsd(s1.costUsd)}`;
+    embed.addFields({ name: '1️⃣  Step 1', value: step1Val, inline: false });
+
+    // ── Step 2 ──
+    let step2Val = `**${s2.label}**`;
+    if (s2.cawcawAmount != null) step2Val += `\n${fmtCaw(s2.cawcawAmount)}  ·  ${fmtUsd(s2.revenueUsd)}`;
+    else if (s2.croAmount != null) step2Val += `\n${fmtCro(s2.croAmount)}  ·  ${fmtUsd(s2.revenueUsd)}`;
+    embed.addFields({ name: '2️⃣  Step 2', value: step2Val, inline: false });
+
+    // ── Cost → Revenue ── matches site's "Cost: $x  Revenue: $y"
+    embed.addFields({
+        name:  '💰 Cost → Revenue',
+        value: `Cost: **${fmtUsd(s1.costUsd)}**  Revenue: **${fmtUsd(s2.revenueUsd)}**`,
+        inline: false,
+    });
+
+    embed.setFooter({
+        text: `${index + 1}/${total} • CAWCAW $${prices.cawcawUsd.toFixed(6)} • CRO $${prices.croUsd.toFixed(4)} • Ebisu's Bay + DexScreener`,
+    });
+    embed.setTimestamp();
+
+    return embed;
+}
+
+function buildPriceHeaderEmbed(prices, opportunities) {
+    const profitable = opportunities.filter(o => o.profitable).length;
+    const total      = opportunities.length;
+
+    return new EmbedBuilder()
+        .setTitle('🐦‍⬛ CAWCAW Strategy — Live Arbitrage')
+        .setColor(0x1a1a2e)
+        .setURL('https://crocrow.crowwithknife.com/?tab=strategy')
+        .setDescription(
+            '> ⚠️ *Beta — estimates exclude gas, fees & slippage. Use at your own risk.*\n\n' +
+            `Found **${profitable} profitable** of **${total} opportunities** across all collections.\n` +
+            `Use the buttons below to browse each trade.`
+        )
+        .addFields(
+            { name: '🪙 CAWCAW', value: `$${prices.cawcawUsd.toFixed(6)} per token`, inline: true },
+            { name: '💠 CRO',    value: `$${prices.croUsd.toFixed(4)} per token`,    inline: true },
+        )
+        .addFields({
+            name: '📖 Strategy Types',
+            value: '🔄 **Floor Flip** — Buy NFT from vault → list on Ebisu at floor\n' +
+                   '🏦 **Vault Pump** — Buy cheapest Ebisu listing → sell to vault',
+            inline: false,
+        })
+        .setTimestamp()
+        .setFooter({ text: 'Refresh with `strategy` • Data: Ebisu\'s Bay + DexScreener + On-chain' });
+}
+
+function buildNavRow(page, total, disabled = false) {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('strat_prev')
+            .setEmoji('◀️')
+            .setLabel('Prev')
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(disabled || page === 0),
+        new ButtonBuilder()
+            .setCustomId('strat_next')
+            .setEmoji('▶️')
+            .setLabel('Next')
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(disabled || page >= total - 1),
+        new ButtonBuilder()
+            .setCustomId('strat_overview')
+            .setLabel('📊 Overview')
+            .setStyle(ButtonStyle.Primary)
+            .setDisabled(disabled || page === -1),
+        new ButtonBuilder()
+            .setLabel('Open Website')
+            .setStyle(ButtonStyle.Link)
+            .setURL('https://crocrow.crowwithknife.com/?tab=strategy')
+    );
+}
+
+async function handleStrategyCommand(message) {
+    try {
+        await message.channel.sendTyping();
+
+        let data;
+        try {
+            data = await getStrategyData();
+        } catch (err) {
+            console.error('[strategy] Data fetch failed:', err.message);
+            await message.reply({
+                embeds: [
+                    new EmbedBuilder()
+                        .setTitle('⚠️ Strategy Unavailable')
+                        .setDescription(
+                            'Could not fetch live data right now. Try again in a moment.\n' +
+                            '[View on website](https://crocrow.crowwithknife.com/?tab=strategy)'
+                        )
+                        .setColor(0xFF0000)
+                        .setTimestamp()
+                ]
+            });
+            return;
+        }
+
+        const { prices, opportunities } = data;
+
+        if (opportunities.length === 0) {
+            await message.reply({
+                embeds: [
+                    new EmbedBuilder()
+                        .setTitle('🐦‍⬛ CAWCAW Strategy')
+                        .setDescription('No opportunities found right now. Try again shortly.')
+                        .setColor(0xffaa00)
+                        .setTimestamp()
+                ]
+            });
+            return;
+        }
+
+        // -1 = overview page, 0..n = individual opportunity cards
+        let currentPage = -1;
+
+        const getEmbed = (page) => page === -1
+            ? buildPriceHeaderEmbed(prices, opportunities)
+            : buildOpportunityEmbed(opportunities[page], prices, page, opportunities.length);
+
+        const sent = await message.reply({
+            embeds:     [getEmbed(currentPage)],
+            components: [buildNavRow(currentPage, opportunities.length)],
+        });
+
+        const collector = sent.createMessageComponentCollector({
+            filter: (i) => i.user.id === message.author.id,
+            time:   120_000, // 2 minutes
+        });
+
+        collector.on('collect', async (interaction) => {
+            if      (interaction.customId === 'strat_prev')     currentPage = Math.max(-1,                      currentPage - 1);
+            else if (interaction.customId === 'strat_next')     currentPage = Math.min(opportunities.length - 1, currentPage + 1);
+            else if (interaction.customId === 'strat_overview') currentPage = -1;
+
+            await interaction.update({
+                embeds:     [getEmbed(currentPage)],
+                components: [buildNavRow(currentPage, opportunities.length)],
+            });
+        });
+
+        collector.on('end', async () => {
+            try {
+                await sent.edit({ components: [buildNavRow(currentPage, opportunities.length, true)] });
+            } catch (_) {}
+        });
+
+    } catch (err) {
+        console.error('[strategy] Unhandled error:', err);
+        await message.reply({
+            embeds: [
+                new EmbedBuilder()
+                    .setTitle('Bot Error')
+                    .setDescription('An unexpected error occurred.')
+                    .setColor(0xFF0000)
+                    .setTimestamp()
+            ]
+        });
     }
 }
 
