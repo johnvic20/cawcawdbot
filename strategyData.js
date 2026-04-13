@@ -109,7 +109,7 @@ async function fetchCheapestListing(contract, collectionName, nftPrefix) {
         return {
             tokenId,
             priceCro: parseFloat(listing.price || 0),
-            rank:     listing.rank || listing.rarityRank || null,
+            rank:     listing.nft?.rank || listing.rank || listing.rarityRank || null,
             nftName:  `${nftPrefix} #${tokenId}`,
         };
     } catch {
